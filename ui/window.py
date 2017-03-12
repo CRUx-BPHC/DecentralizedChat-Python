@@ -1,4 +1,8 @@
+import asyncio
+
 from gi.repository import Gtk
+
+import network_thread
 
 
 class Window(Gtk.ApplicationWindow):
@@ -33,5 +37,29 @@ class Window(Gtk.ApplicationWindow):
         self.button_send.set_image(image_send)
         self.button_send.connect("clicked", self.send_message)
 
+        # starting the network thread
+        # network_thread is initialized with msg_rec_cor (a coroutine, which
+        # is again passed to Client object created in network_thread), when
+        # network_thread receives broadcast_message from server, message can be
+        # easily passed to GUI thread (inter-thread object sharing) using the
+        # coroutine (easier than trivial inter-thread object sharing),
+        # so that it can be displayed along with gui-widgets in GUI thread
+        # TODO: get host and port number from relevant entry boxes
+        self.network_thread = network_thread.NetworkThread(
+            "localhost", 8888, self.msg_recv_cor())
+        self.send_cor = self.network_thread.msg_send_cor()
+        self.send_cor.send(None)
+        self.network_thread.start()
+
     def send_message(self, button_send: Gtk.Button) -> None:
-        pass
+        client_message = self.entry_chat_message.get_text()
+        if len(client_message) > 0:
+            self.entry_chat_message.set_text("")
+            self.entry_chat_message.set_placeholder_text("Type message ...")
+            self.send_cor.send(client_message)
+
+    @asyncio.coroutine
+    def msg_recv_cor(self):
+        while True:
+            received_message = yield
+            print("Received message in UI thread:", received_message.strip())
