@@ -6,16 +6,17 @@ class Client:
     def __init__(self,
                  reader: asyncio.StreamReader,
                  writer: asyncio.StreamWriter,
-                 loop: asyncio.AbstractEventLoop) -> None:
+                 recv_cor: asyncio.coroutine) -> None:
         self.stream_reader = reader
         self.stream_writer = writer
-        loop.create_task(self.receive_broadcast())
-        loop.run_forever()
+        self.recv_cor = recv_cor
+        self.recv_cor.send(None)
 
-    async def broadcast_message(self, msg: str):
-        self.stream_writer.write(msg)
+    def send_client_message(self, message: str):
+        self.stream_writer.write(message.encode())
 
     async def receive_broadcast(self):
         while True:
-            message = (await self.stream_reader.read(4096)).decode('utf-8')
-            print("Received message:", message)
+            message = (await self.stream_reader.read(4096)).decode()
+            # received broadcast message from server passed to coroutine in GUI
+            self.recv_cor.send(message)
